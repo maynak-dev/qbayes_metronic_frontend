@@ -1,18 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
-
+import { useNavigate } from 'react-router-dom';
 const AdminLogin = () => {
   const [activeForm, setActiveForm] = useState('signin');
   const signinFormRef = useRef(null);
-  const signupFormRef = useRef(null);
   const forgotFormRef = useRef(null);
   const signinValidationRef = useRef(null);
-  const signupValidationRef = useRef(null);
   const forgotValidationRef = useRef(null);
 
   const [signInData, setSignInData] = useState({ username: '', password: '', remember: false });
-  const [signUpData, setSignUpData] = useState({ fullname: '', email: '', password: '', cpassword: '', agree: false });
   const [forgotData, setForgotData] = useState({ email: '' });
-
+  const navigate = useNavigate();
   const scrollTop = () => {
     if (window.KTUtil && typeof window.KTUtil.scrollTop === 'function') {
       window.KTUtil.scrollTop();
@@ -22,123 +19,84 @@ const AdminLogin = () => {
   };
 
   // --- Sign In Form Validation ---
-  useEffect(() => {
-    if (activeForm === 'signin' && signinFormRef.current) {
-      if (signinValidationRef.current) signinValidationRef.current.destroy();
-      const validation = window.FormValidation.formValidation(signinFormRef.current, {
-        fields: {
-          username: { validators: { notEmpty: { message: 'Username is required' } } },
-          password: { validators: { notEmpty: { message: 'Password is required' } } },
-        },
-        plugins: {
-          trigger: new window.FormValidation.plugins.Trigger(),
-          submitButton: new window.FormValidation.plugins.SubmitButton(),
-          bootstrap: new window.FormValidation.plugins.Bootstrap(),
-        },
-      });
-      signinValidationRef.current = validation;
+useEffect(() => {
+  if (activeForm === 'signin' && signinFormRef.current) {
+    if (signinValidationRef.current) signinValidationRef.current.destroy();
 
-      const submitBtn = document.getElementById('kt_login_signin_submit');
-      const handleSignInClick = (e) => {
-        e.preventDefault();
-        validation.validate().then((status) => {
-          if (status === 'Valid') {
-            window.Swal.fire({
-              text: 'All is cool! Now you submit this form',
-              icon: 'success',
-              buttonsStyling: false,
-              confirmButtonText: 'Ok, got it!',
-              customClass: { confirmButton: 'btn font-weight-bold btn-light-primary' },
-            }).then(scrollTop);
-          } else {
-            window.Swal.fire({
-              text: 'Sorry, looks like there are some errors detected, please try again.',
-              icon: 'error',
-              buttonsStyling: false,
-              confirmButtonText: 'Ok, got it!',
-              customClass: { confirmButton: 'btn font-weight-bold btn-light-primary' },
-            }).then(scrollTop);
-          }
-        });
-      };
+    const validation = window.FormValidation.formValidation(signinFormRef.current, {
+      fields: {
+        username: { validators: { notEmpty: { message: 'Username is required' } } },
+        password: { validators: { notEmpty: { message: 'Password is required' } } },
+      },
+      plugins: {
+        trigger: new window.FormValidation.plugins.Trigger(),
+        submitButton: new window.FormValidation.plugins.SubmitButton(),
+        bootstrap: new window.FormValidation.plugins.Bootstrap(),
+      },
+    });
+    signinValidationRef.current = validation;
 
-      if (submitBtn) submitBtn.addEventListener('click', handleSignInClick);
-      return () => {
-        if (submitBtn) submitBtn.removeEventListener('click', handleSignInClick);
-        if (signinValidationRef.current) {
-          signinValidationRef.current.destroy();
-          signinValidationRef.current = null;
+    const submitBtn = document.getElementById('kt_login_signin_submit');
+    const handleSignInClick = (e) => {
+      e.preventDefault();
+      validation.validate().then((status) => {
+        if (status === 'Valid') {
+          // Send login request to Django backend
+          fetch(`${import.meta.env.VITE_API_URL}/api/token/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              username: signInData.username,
+              password: signInData.password,
+            }),
+          })
+            .then((res) => {
+              if (!res.ok) {
+                return res.json().then((err) => Promise.reject(err));
+              }
+              return res.json();
+            })
+            .then((data) => {
+              // Store tokens
+              localStorage.setItem('access_token', data.access);
+              localStorage.setItem('refresh_token', data.refresh);
+              // Redirect to dashboard
+              navigate('/admindashboard');
+            })
+            .catch((error) => {
+              console.error('Login error:', error);
+              window.Swal.fire({
+                text: error.detail || 'Invalid credentials or server error',
+                icon: 'error',
+                buttonsStyling: false,
+                confirmButtonText: 'Ok, got it!',
+                customClass: { confirmButton: 'btn font-weight-bold btn-light-primary' },
+              }).then(scrollTop);
+            });
+        } else {
+          window.Swal.fire({
+            text: 'Please fill in all fields',
+            icon: 'error',
+            buttonsStyling: false,
+            confirmButtonText: 'Ok, got it!',
+            customClass: { confirmButton: 'btn font-weight-bold btn-light-primary' },
+          }).then(scrollTop);
         }
-      };
-    }
-  }, [activeForm]);
-
-  // --- Sign Up Form Validation ---
-  useEffect(() => {
-    if (activeForm === 'signup' && signupFormRef.current) {
-      if (signupValidationRef.current) signupValidationRef.current.destroy();
-      const validation = window.FormValidation.formValidation(signupFormRef.current, {
-        fields: {
-          fullname: { validators: { notEmpty: { message: 'Fullname is required' } } },
-          email: {
-            validators: {
-              notEmpty: { message: 'Email address is required' },
-              emailAddress: { message: 'The value is not a valid email address' },
-            },
-          },
-          password: { validators: { notEmpty: { message: 'The password is required' } } },
-          cpassword: {
-            validators: {
-              notEmpty: { message: 'The password confirmation is required' },
-              identical: {
-                compare: () => signupFormRef.current.querySelector('[name="password"]').value,
-                message: 'The password and its confirm are not the same',
-              },
-            },
-          },
-          agree: { validators: { notEmpty: { message: 'You must accept the terms and conditions' } } },
-        },
-        plugins: {
-          trigger: new window.FormValidation.plugins.Trigger(),
-          bootstrap: new window.FormValidation.plugins.Bootstrap(),
-        },
       });
-      signupValidationRef.current = validation;
+    };
 
-      const submitBtn = document.getElementById('kt_login_signup_submit');
-      const handleSignUpClick = (e) => {
-        e.preventDefault();
-        validation.validate().then((status) => {
-          if (status === 'Valid') {
-            window.Swal.fire({
-              text: 'All is cool! Now you submit this form',
-              icon: 'success',
-              buttonsStyling: false,
-              confirmButtonText: 'Ok, got it!',
-              customClass: { confirmButton: 'btn font-weight-bold btn-light-primary' },
-            }).then(scrollTop);
-          } else {
-            window.Swal.fire({
-              text: 'Sorry, looks like there are some errors detected, please try again.',
-              icon: 'error',
-              buttonsStyling: false,
-              confirmButtonText: 'Ok, got it!',
-              customClass: { confirmButton: 'btn font-weight-bold btn-light-primary' },
-            }).then(scrollTop);
-          }
-        });
-      };
-
-      if (submitBtn) submitBtn.addEventListener('click', handleSignUpClick);
-      return () => {
-        if (submitBtn) submitBtn.removeEventListener('click', handleSignUpClick);
-        if (signupValidationRef.current) {
-          signupValidationRef.current.destroy();
-          signupValidationRef.current = null;
-        }
-      };
-    }
-  }, [activeForm]);
+    if (submitBtn) submitBtn.addEventListener('click', handleSignInClick);
+    return () => {
+      if (submitBtn) submitBtn.removeEventListener('click', handleSignInClick);
+      if (signinValidationRef.current) {
+        signinValidationRef.current.destroy();
+        signinValidationRef.current = null;
+      }
+    };
+  }
+  // Add signInData as a dependency so the handler always uses the latest form values
+}, [activeForm, signInData, navigate]);
+ 
 
   // --- Forgot Password Form Validation ---
   useEffect(() => {
@@ -249,7 +207,7 @@ const AdminLogin = () => {
                   <input
                     className="form-control h-auto text-white bg-white-o-5 rounded-pill border-0 py-4 px-8"
                     type="text"
-                    placeholder="Email"
+                    placeholder="Username"
                     name="username"
                     autoComplete="off"
                     value={signInData.username}

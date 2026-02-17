@@ -1,14 +1,38 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import AdminLogin from './pages/AdminLogin';
-// Import other pages when you create them
-// import Dashboard from './pages/Dashboard';
+import AdminDashboard from './pages/AdminDashboard'; // You'll create this placeholder
+
+// Protected Route component
+const ProtectedRoute = ({ children }) => {
+  const token = localStorage.getItem('access_token');
+  if (!token) {
+    return <Navigate to="/admin" replace />;
+  }
+  return children;
+};
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-          <Route path="/admin" element={<AdminLogin />} />
+        {/* Public route: login page */}
+        <Route path="/admin" element={<AdminLogin />} />
+
+        {/* Protected route: dashboard */}
+        <Route
+          path="/admindashboard"
+          element={
+            <ProtectedRoute>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Redirect root to /admin (optional) */}
+        <Route path="/" element={<Navigate to="/admin" replace />} />
+
+        {/* Catch-all: redirect to /admin */}
+        <Route path="*" element={<Navigate to="/admin" replace />} />
       </Routes>
     </BrowserRouter>
   );
