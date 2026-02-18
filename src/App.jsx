@@ -1,24 +1,22 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import AdminLogin from './pages/AdminLogin';
-import AdminDashboard from './pages/AdminDashboard'; // You'll create this placeholder
+import AdminDashboard from './pages/AdminDashboard';
+import UserBoard from './components/UserBoard';
 
-// Protected Route component
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem('access_token');
-  if (!token) {
-    return <Navigate to="/admin" replace />;
-  }
-  return children;
+  return token ? children : <Navigate to="/admin" replace />;
 };
+
+import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
+
+ChartJS.register(ArcElement, Tooltip, Legend);
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public route: login page */}
         <Route path="/admin" element={<AdminLogin />} />
-
-        {/* Protected route: dashboard */}
         <Route
           path="/admindashboard"
           element={
@@ -27,11 +25,8 @@ function App() {
             </ProtectedRoute>
           }
         />
-
-        {/* Redirect root to /admin (optional) */}
+        <Route path="/users" element={<UserBoard />} />
         <Route path="/" element={<Navigate to="/admin" replace />} />
-
-        {/* Catch-all: redirect to /admin */}
         <Route path="*" element={<Navigate to="/admin" replace />} />
       </Routes>
     </BrowserRouter>
