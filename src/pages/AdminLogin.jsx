@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+
 const AdminLogin = () => {
   const [activeForm, setActiveForm] = useState('signin');
   const signinFormRef = useRef(null);
@@ -10,6 +11,13 @@ const AdminLogin = () => {
   const [signInData, setSignInData] = useState({ username: '', password: '', remember: false });
   const [forgotData, setForgotData] = useState({ email: '' });
   const navigate = useNavigate();
+
+  // Ref to always have the latest signInData in the event handler
+  const signInDataRef = useRef(signInData);
+  useEffect(() => {
+    signInDataRef.current = signInData;
+  }, [signInData]);
+
   const scrollTop = () => {
     if (window.KTUtil && typeof window.KTUtil.scrollTop === 'function') {
       window.KTUtil.scrollTop();
@@ -19,8 +27,9 @@ const AdminLogin = () => {
   };
 
   // --- Sign In Form Validation ---
-useEffect(() => {
-  if (activeForm === 'signin' && signinFormRef.current) {
+  useEffect(() => {
+    if (activeForm !== 'signin' || !signinFormRef.current) return;
+
     if (signinValidationRef.current) signinValidationRef.current.destroy();
 
     const validation = window.FormValidation.formValidation(signinFormRef.current, {
@@ -41,13 +50,13 @@ useEffect(() => {
       e.preventDefault();
       validation.validate().then((status) => {
         if (status === 'Valid') {
-          // Send login request to Django backend
+          const currentData = signInDataRef.current; // get latest form values
           fetch(`${import.meta.env.VITE_API_URL}/api/token/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              username: signInData.username,
-              password: signInData.password,
+              username: currentData.username,
+              password: currentData.password,
             }),
           })
             .then((res) => {
@@ -57,10 +66,8 @@ useEffect(() => {
               return res.json();
             })
             .then((data) => {
-              // Store tokens
               localStorage.setItem('access_token', data.access);
               localStorage.setItem('refresh_token', data.refresh);
-              // Redirect to dashboard
               navigate('/admindashboard');
             })
             .catch((error) => {
@@ -93,65 +100,62 @@ useEffect(() => {
         signinValidationRef.current = null;
       }
     };
-  }
-  // Add signInData as a dependency so the handler always uses the latest form values
-}, [activeForm, signInData, navigate]);
- 
+  }, [activeForm, navigate]); // removed signInData dependency
 
   // --- Forgot Password Form Validation ---
   useEffect(() => {
-    if (activeForm === 'forgot' && forgotFormRef.current) {
-      if (forgotValidationRef.current) forgotValidationRef.current.destroy();
-      const validation = window.FormValidation.formValidation(forgotFormRef.current, {
-        fields: {
-          email: {
-            validators: {
-              notEmpty: { message: 'Email address is required' },
-              emailAddress: { message: 'The value is not a valid email address' },
-            },
+    if (activeForm !== 'forgot' || !forgotFormRef.current) return;
+
+    if (forgotValidationRef.current) forgotValidationRef.current.destroy();
+    const validation = window.FormValidation.formValidation(forgotFormRef.current, {
+      fields: {
+        email: {
+          validators: {
+            notEmpty: { message: 'Email address is required' },
+            emailAddress: { message: 'The value is not a valid email address' },
           },
         },
-        plugins: {
-          trigger: new window.FormValidation.plugins.Trigger(),
-          bootstrap: new window.FormValidation.plugins.Bootstrap(),
-        },
-      });
-      forgotValidationRef.current = validation;
+      },
+      plugins: {
+        trigger: new window.FormValidation.plugins.Trigger(),
+        bootstrap: new window.FormValidation.plugins.Bootstrap(),
+      },
+    });
+    forgotValidationRef.current = validation;
 
-      const submitBtn = document.getElementById('kt_login_forgot_submit');
-      const handleForgotClick = (e) => {
-        e.preventDefault();
-        validation.validate().then((status) => {
-          if (status === 'Valid') {
-            scrollTop();
-          } else {
-            window.Swal.fire({
-              text: 'Sorry, looks like there are some errors detected, please try again.',
-              icon: 'error',
-              buttonsStyling: false,
-              confirmButtonText: 'Ok, got it!',
-              customClass: { confirmButton: 'btn font-weight-bold btn-light-primary' },
-            }).then(scrollTop);
-          }
-        });
-      };
-
-      if (submitBtn) submitBtn.addEventListener('click', handleForgotClick);
-      return () => {
-        if (submitBtn) submitBtn.removeEventListener('click', handleForgotClick);
-        if (forgotValidationRef.current) {
-          forgotValidationRef.current.destroy();
-          forgotValidationRef.current = null;
+    const submitBtn = document.getElementById('kt_login_forgot_submit');
+    const handleForgotClick = (e) => {
+      e.preventDefault();
+      validation.validate().then((status) => {
+        if (status === 'Valid') {
+          // Implement forgot password logic here
+          scrollTop();
+        } else {
+          window.Swal.fire({
+            text: 'Sorry, looks like there are some errors detected, please try again.',
+            icon: 'error',
+            buttonsStyling: false,
+            confirmButtonText: 'Ok, got it!',
+            customClass: { confirmButton: 'btn font-weight-bold btn-light-primary' },
+          }).then(scrollTop);
         }
-      };
-    }
+      });
+    };
+
+    if (submitBtn) submitBtn.addEventListener('click', handleForgotClick);
+    return () => {
+      if (submitBtn) submitBtn.removeEventListener('click', handleForgotClick);
+      if (forgotValidationRef.current) {
+        forgotValidationRef.current.destroy();
+        forgotValidationRef.current = null;
+      }
+    };
   }, [activeForm]);
 
   return (
     <>
       <style>
         {`
-        /* Full height container, centers content */
         .login-page {
           display: flex;
           align-items: center;
@@ -160,38 +164,33 @@ useEffect(() => {
           background: url('/assets/media/bg/bg-2.jpg') no-repeat center center fixed;
           background-size: cover;
         }
-        /* Form wrapper with transparent background (no overlay) */
         .login-form-wrapper {
           padding: 40px;
           max-width: 400px;
           width: 100%;
           border-radius: 8px;
         }
-        /* Style logo image for better appearance */
         .max-h-75px {
           max-height: 75px;
         }
-        /* Style for header texts for better visibility */
         .header-text {
           text-align: center;
           margin-bottom: 20px;
         }
         .header-text h3,
         .header-text p {
-          color: #fff; /* White text for visibility */
+          color: #fff;
         }
         `}
       </style>
       <div className="login-page">
         <div className="login-form-wrapper">
-          {/* Logo */}
           <div className="d-flex flex-center mb-15">
             <a href="#">
               <img src="/assets/media/logos/logo-letter-13.png" className="max-h-75px" alt="logo" />
             </a>
           </div>
 
-          {/* Sign In Header with more visible text */}
           {activeForm === 'signin' && (
             <div className="header-text mb-20">
               <h3 className="font-weight-normal mb-2">Sign In To Admin</h3>
@@ -199,7 +198,6 @@ useEffect(() => {
             </div>
           )}
 
-          {/* Sign In Form */}
           {activeForm === 'signin' && (
             <div className="login-signin">
               <form className="form" id="kt_login_signin_form" ref={signinFormRef}>
@@ -258,7 +256,6 @@ useEffect(() => {
             </div>
           )}
 
-          {/* Forgot Password Form */}
           {activeForm === 'forgot' && (
             <div className="login-forgot">
               <form className="form" id="kt_login_forgot_form" ref={forgotFormRef}>
